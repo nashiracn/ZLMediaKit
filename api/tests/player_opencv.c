@@ -1,9 +1,9 @@
 ﻿/*
- * Copyright (c) 2016 The ZLMediaKit project authors. All Rights Reserved.
+ * Copyright (c) 2016-present The ZLMediaKit project authors. All Rights Reserved.
  *
- * This file is part of ZLMediaKit(https://github.com/xia-chu/ZLMediaKit).
+ * This file is part of ZLMediaKit(https://github.com/ZLMediaKit/ZLMediaKit).
  *
- * Use of this source code is governed by MIT license that can be found in the
+ * Use of this source code is governed by MIT-like license that can be found in the
  * LICENSE file in the root of the source tree. All contributing project authors
  * may be found in the AUTHORS file in the root of the source tree.
  */
@@ -30,7 +30,13 @@ void API_CALL on_frame_decode(void *user_data, mk_frame_pix frame) {
     int h = mk_get_av_frame_height(mk_frame_pix_get_av_frame(frame));
 
 #if 1
-    uint8_t *brg24 = malloc(w * h * 3);
+    int align = 32; 
+    size_t pixel_size = 3;
+    size_t raw_linesize = w * pixel_size;
+    // 对齐后的宽度
+    size_t aligned_linesize = (raw_linesize + align - 1) & ~(align - 1);
+    size_t total_size = aligned_linesize * h;
+    uint8_t* brg24 = malloc(total_size);
     mk_swscale_input_frame(ctx->swscale, frame, brg24);
     free(brg24);
 #else

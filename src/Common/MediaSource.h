@@ -1,9 +1,9 @@
 ﻿/*
- * Copyright (c) 2016 The ZLMediaKit project authors. All Rights Reserved.
+ * Copyright (c) 2016-present The ZLMediaKit project authors. All Rights Reserved.
  *
- * This file is part of ZLMediaKit(https://github.com/xia-chu/ZLMediaKit).
+ * This file is part of ZLMediaKit(https://github.com/ZLMediaKit/ZLMediaKit).
  *
- * Use of this source code is governed by MIT license that can be found in the
+ * Use of this source code is governed by MIT-like license that can be found in the
  * LICENSE file in the root of the source tree. All contributing project authors
  * may be found in the AUTHORS file in the root of the source tree.
  */
@@ -15,6 +15,7 @@
 #include <atomic>
 #include <memory>
 #include <functional>
+#include "Util/mini.h"
 #include "Network/Socket.h"
 #include "Extension/Track.h"
 #include "Record/Recorder.h"
@@ -41,6 +42,7 @@ enum class MediaOriginType : uint8_t {
 std::string getOriginTypeString(MediaOriginType type);
 
 class MediaSource;
+class RtpProcess;
 class MultiMediaSourceMuxer;
 class MediaSourceEvent {
 public:
@@ -50,10 +52,8 @@ public:
     public:
         template<typename ...T>
         NotImplemented(T && ...args) : std::runtime_error(std::forward<T>(args)...) {}
-        ~NotImplemented() override = default;
     };
 
-    MediaSourceEvent() = default;
     virtual ~MediaSourceEvent() = default;
 
     // 获取媒体源类型
@@ -90,21 +90,35 @@ public:
     // 获取所有track相关信息
     virtual std::vector<Track::Ptr> getMediaTracks(MediaSource &sender, bool trackReady = true) const { return std::vector<Track::Ptr>(); };
     // 获取MultiMediaSourceMuxer对象
-    virtual std::shared_ptr<MultiMediaSourceMuxer> getMuxer(MediaSource &sender) { return nullptr; }
+    virtual std::shared_ptr<MultiMediaSourceMuxer> getMuxer(MediaSource &sender) const { return nullptr; }
+    // 获取RtpProcess对象
+    virtual std::shared_ptr<RtpProcess> getRtpProcess(MediaSource &sender) const { return nullptr; }
 
     class SendRtpArgs {
     public:
-        // 是否采用udp方式发送rtp
-        bool is_udp = true;
-        // rtp采用ps还是es方式
-        bool use_ps = true;
-        //发送es流时指定是否只发送纯音频流
+        enum DataType {
+            kRtpES = 0, // 发送ES流
+            kRtpPS = 1, // 发送PS流
+            kRtpTS = 2 // 发送TS流
+        };
+
+        enum ConType {
+            kTcpActive = 0, // tcp主动模式，tcp客户端主动连接对方并发送rtp
+            kUdpActive = 1, // udp主动模式，主动发送数据给对方
+            kTcpPassive = 2, // tcp被动模式，tcp服务器，等待对方连接并回复rtp
+            kUdpPassive = 3 // udp被动方式，等待对方发送nat打洞包，然后回复rtp至打洞包源地址
+        };
+
+        // rtp类型
+        DataType data_type = kRtpPS;
+        // 连接类型
+        ConType con_type = kUdpActive;
+
+        // 发送es流时指定是否只发送纯音频流
         bool only_audio = false;
-        //tcp被动方式
-        bool passive = false;
         // rtp payload type
         uint8_t pt = 96;
-        //是否支持同ssrc多服务器发送
+        // 是否支持同ssrc多服务器发送
         bool ssrc_multi_send = false;
         // 指定rtp ssrc
         std::string ssrc;
@@ -115,16 +129,16 @@ public:
         // 发送目标主机地址，可以是ip或域名
         std::string dst_url;
 
-        //udp发送时，是否开启rr rtcp接收超时判断
+        // udp发送时，是否开启rr rtcp接收超时判断
         bool udp_rtcp_timeout = false;
-        //tcp被动发送服务器延时关闭事件，单位毫秒；设置为0时，则使用默认值5000ms
-        uint32_t tcp_passive_close_delay_ms = 0;
-        //udp 发送时，rr rtcp包接收超时时间，单位毫秒
+        // passive被动、tcp主动模式超时时间
+        uint32_t close_delay_ms = 0;
+        // udp 发送时，rr rtcp包接收超时时间，单位毫秒
         uint32_t rtcp_timeout_ms = 30 * 1000;
-        //udp 发送时，发送sr rtcp包间隔，单位毫秒
+        // udp 发送时，发送sr rtcp包间隔，单位毫秒
         uint32_t rtcp_send_interval_ms = 5 * 1000;
 
-        //发送rtp同时接收，一般用于双向语言对讲, 如果不为空，说明开启接收
+        // 发送rtp同时接收，一般用于双向语言对讲, 如果不为空，说明开启接收
         std::string recv_stream_id;
     };
 
@@ -136,6 +150,23 @@ public:
 private:
     toolkit::Timer::Ptr _async_close_timer;
 };
+
+
+template <typename MAP, typename KEY, typename TYPE>
+static void getArgsValue(const MAP &allArgs, const KEY &key, TYPE &value) {
+    auto val = ((MAP &)allArgs)[key];
+    if (!val.empty()) {
+        value = (TYPE)val;
+    }
+}
+
+template <typename KEY, typename TYPE>
+static void getArgsValue(const toolkit::mINI &allArgs, const KEY &key, TYPE &value) {
+    auto it = allArgs.find(key);
+    if (it != allArgs.end()) {
+        value = (TYPE)it->second;
+    }
+}
 
 class ProtocolOption {
 public:
@@ -160,6 +191,10 @@ public:
 
     //断连续推延时，单位毫秒，默认采用配置文件
     uint32_t continue_push_ms;
+
+    // 平滑发送定时器间隔，单位毫秒，置0则关闭；开启后影响cpu性能同时增加内存
+    // 该配置开启后可以解决一些流发送不平滑导致zlmediakit转发也不平滑的问题
+    uint32_t paced_sender_ms;
 
     //是否开启转换为hls(mpegts)
     bool enable_hls;
@@ -200,6 +235,9 @@ public:
     // 支持通过on_publish返回值替换stream_id
     std::string stream_replace;
 
+    // 最大track数
+    size_t max_track = 2;
+
     template <typename MAP>
     ProtocolOption(const MAP &allArgs) : ProtocolOption() {
         load(allArgs);
@@ -213,6 +251,7 @@ public:
         GET_OPT_VALUE(add_mute_audio);
         GET_OPT_VALUE(auto_close);
         GET_OPT_VALUE(continue_push_ms);
+        GET_OPT_VALUE(paced_sender_ms);
 
         GET_OPT_VALUE(enable_hls);
         GET_OPT_VALUE(enable_hls_fmp4);
@@ -234,24 +273,13 @@ public:
 
         GET_OPT_VALUE(hls_save_path);
         GET_OPT_VALUE(stream_replace);
-    }
-
-private:
-    template <typename MAP, typename KEY, typename TYPE>
-    static void getArgsValue(const MAP &allArgs, const KEY &key, TYPE &value) {
-        auto val = ((MAP &)allArgs)[key];
-        if (!val.empty()) {
-            value = (TYPE)val;
-        }
+        GET_OPT_VALUE(max_track);
     }
 };
 
 //该对象用于拦截感兴趣的MediaSourceEvent事件
 class MediaSourceEventInterceptor : public MediaSourceEvent {
 public:
-    MediaSourceEventInterceptor() = default;
-    ~MediaSourceEventInterceptor() override = default;
-
     void setDelegate(const std::weak_ptr<MediaSourceEvent> &listener);
     std::shared_ptr<MediaSourceEvent> getDelegate() const;
 
@@ -273,7 +301,8 @@ public:
     bool stopSendRtp(MediaSource &sender, const std::string &ssrc) override;
     float getLossRate(MediaSource &sender, TrackType type) override;
     toolkit::EventPoller::Ptr getOwnerPoller(MediaSource &sender) override;
-    std::shared_ptr<MultiMediaSourceMuxer> getMuxer(MediaSource &sender) override;
+    std::shared_ptr<MultiMediaSourceMuxer> getMuxer(MediaSource &sender) const override;
+    std::shared_ptr<RtpProcess> getRtpProcess(MediaSource &sender) const override;
 
 private:
     std::weak_ptr<MediaSourceEvent> _listener;
@@ -284,7 +313,6 @@ private:
  */
 class MediaInfo: public MediaTuple {
 public:
-    ~MediaInfo() = default;
     MediaInfo() = default;
     MediaInfo(const std::string &url) { parse(url); }
     void parse(const std::string &url);
@@ -295,7 +323,6 @@ public:
     std::string full_url;
     std::string schema;
     std::string host;
-    std::string param_strs;
 };
 
 bool equalMediaTuple(const MediaTuple& a, const MediaTuple& b);
@@ -392,7 +419,9 @@ public:
     // 获取所在线程
     toolkit::EventPoller::Ptr getOwnerPoller();
     // 获取MultiMediaSourceMuxer对象
-    std::shared_ptr<MultiMediaSourceMuxer> getMuxer();
+    std::shared_ptr<MultiMediaSourceMuxer> getMuxer() const;
+    // 获取RtpProcess对象
+    std::shared_ptr<RtpProcess> getRtpProcess() const;
 
     ////////////////static方法，查找或生成MediaSource////////////////
 

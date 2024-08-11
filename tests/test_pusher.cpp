@@ -1,9 +1,9 @@
 ﻿/*
- * Copyright (c) 2016 The ZLMediaKit project authors. All Rights Reserved.
+ * Copyright (c) 2016-present The ZLMediaKit project authors. All Rights Reserved.
  *
- * This file is part of ZLMediaKit(https://github.com/xia-chu/ZLMediaKit).
+ * This file is part of ZLMediaKit(https://github.com/ZLMediaKit/ZLMediaKit).
  *
- * Use of this source code is governed by MIT license that can be found in the
+ * Use of this source code is governed by MIT-like license that can be found in the
  * LICENSE file in the root of the source tree. All contributing project authors
  * may be found in the AUTHORS file in the root of the source tree.
  */
@@ -79,7 +79,8 @@ int domain(const string &playUrl, const string &pushUrl) {
     ProtocolOption option;
     option.enable_hls = false;
     option.enable_mp4 = false;
-    PlayerProxy::Ptr player(new PlayerProxy(DEFAULT_VHOST, "app", "stream", option, -1, poller));
+    auto tuple = MediaTuple{DEFAULT_VHOST, "app", "stream", ""};
+    PlayerProxy::Ptr player(new PlayerProxy(tuple, option, -1, poller));
     //可以指定rtsp拉流方式，支持tcp和udp方式，默认tcp
 //    (*player)[Client::kRtpType] = Rtsp::RTP_UDP;
     player->play(playUrl.data());

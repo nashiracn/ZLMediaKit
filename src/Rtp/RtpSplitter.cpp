@@ -1,9 +1,9 @@
 ﻿/*
- * Copyright (c) 2016 The ZLMediaKit project authors. All Rights Reserved.
+ * Copyright (c) 2016-present The ZLMediaKit project authors. All Rights Reserved.
  *
- * This file is part of ZLMediaKit(https://github.com/xia-chu/ZLMediaKit).
+ * This file is part of ZLMediaKit(https://github.com/ZLMediaKit/ZLMediaKit).
  *
- * Use of this source code is governed by MIT license that can be found in the
+ * Use of this source code is governed by MIT-like license that can be found in the
  * LICENSE file in the root of the source tree. All contributing project authors
  * may be found in the AUTHORS file in the root of the source tree.
  */
@@ -46,7 +46,7 @@ const char *RtpSplitter::onSearchPacketTail(const char *data, size_t len) {
         return nullptr;
     }
 
-    if ( _is_ehome ) {
+    if (_check_ehome_count) {
         if (isEhome(data, len)) {
             //是ehome协议
             if (len < kEHOME_OFFSET + 4) {
@@ -59,7 +59,7 @@ const char *RtpSplitter::onSearchPacketTail(const char *data, size_t len) {
             //忽略ehome私有头
             return onSearchPacketTail_l(data + kEHOME_OFFSET + 2, len - kEHOME_OFFSET - 2);
         }
-        _is_ehome = false;
+        _check_ehome_count--;
     }
 
     if ( _is_rtsp_interleaved ) {
@@ -70,7 +70,7 @@ const char *RtpSplitter::onSearchPacketTail(const char *data, size_t len) {
         }
         _is_rtsp_interleaved = false;
     }
-    
+
     //两个字节的rtp头
     _offset = 2;
     return onSearchPacketTail_l(data, len);

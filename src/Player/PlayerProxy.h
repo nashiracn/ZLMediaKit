@@ -1,9 +1,9 @@
 ﻿/*
- * Copyright (c) 2016 The ZLMediaKit project authors. All Rights Reserved.
+ * Copyright (c) 2016-present The ZLMediaKit project authors. All Rights Reserved.
  *
- * This file is part of ZLMediaKit(https://github.com/xia-chu/ZLMediaKit).
+ * This file is part of ZLMediaKit(https://github.com/ZLMediaKit/ZLMediaKit).
  *
- * Use of this source code is governed by MIT license that can be found in the
+ * Use of this source code is governed by MIT-like license that can be found in the
  * LICENSE file in the root of the source tree. All contributing project authors
  * may be found in the AUTHORS file in the root of the source tree.
  */
@@ -66,9 +66,9 @@ public:
 
     // 如果retry_count<0,则一直重试播放；否则重试retry_count次数
     // 默认一直重试
-    PlayerProxy(
-        const std::string &vhost, const std::string &app, const std::string &stream_id, const ProtocolOption &option, int retry_count = -1,
-        const toolkit::EventPoller::Ptr &poller = nullptr, int reconnect_delay_min = 2, int reconnect_delay_max = 60, int reconnect_delay_step = 3);
+    PlayerProxy(const MediaTuple &tuple, const ProtocolOption &option, int retry_count = -1,
+        const toolkit::EventPoller::Ptr &poller = nullptr, 
+        int reconnect_delay_min = 2, int reconnect_delay_max = 60, int reconnect_delay_step = 3);
 
     ~PlayerProxy() override;
 
@@ -129,12 +129,12 @@ private:
     void setTranslationInfo();
 
 private:
-    ProtocolOption _option;
     int _retry_count;
     int _reconnect_delay_min;
     int _reconnect_delay_max;
     int _reconnect_delay_step;
     MediaTuple _tuple;
+    ProtocolOption _option;
     std::string _pull_url;
     toolkit::Timer::Ptr _timer;
     std::function<void()> _on_disconnect;

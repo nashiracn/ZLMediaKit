@@ -1,9 +1,9 @@
 ﻿/*
- * Copyright (c) 2016 The ZLMediaKit project authors. All Rights Reserved.
+ * Copyright (c) 2016-present The ZLMediaKit project authors. All Rights Reserved.
  *
- * This file is part of ZLMediaKit(https://github.com/xia-chu/ZLMediaKit).
+ * This file is part of ZLMediaKit(https://github.com/ZLMediaKit/ZLMediaKit).
  *
- * Use of this source code is governed by MIT license that can be found in the
+ * Use of this source code is governed by MIT-like license that can be found in the
  * LICENSE file in the root of the source tree. All contributing project authors
  * may be found in the AUTHORS file in the root of the source tree.
  */
@@ -269,12 +269,12 @@ typedef on_mk_media_source_send_rtp_result on_mk_media_send_rtp_result;
  * @param dst_url 目标ip或域名
  * @param dst_port 目标端口
  * @param ssrc rtp的ssrc，10进制的字符串打印
- * @param is_udp 是否为udp
+ * @param con_type 0: tcp主动，1：udp主动，2：tcp被动，3：udp被动
  * @param cb 启动成功或失败回调
  * @param user_data 回调用户指针
  */
-API_EXPORT void API_CALL mk_media_start_send_rtp(mk_media ctx, const char *dst_url, uint16_t dst_port, const char *ssrc, int is_udp, on_mk_media_send_rtp_result cb, void *user_data);
-API_EXPORT void API_CALL mk_media_start_send_rtp2(mk_media ctx, const char *dst_url, uint16_t dst_port, const char *ssrc, int is_udp, on_mk_media_send_rtp_result cb, void *user_data, on_user_data_free user_data_free);
+API_EXPORT void API_CALL mk_media_start_send_rtp(mk_media ctx, const char *dst_url, uint16_t dst_port, const char *ssrc, int con_type, on_mk_media_send_rtp_result cb, void *user_data);
+API_EXPORT void API_CALL mk_media_start_send_rtp2(mk_media ctx, const char *dst_url, uint16_t dst_port, const char *ssrc, int con_type, on_mk_media_send_rtp_result cb, void *user_data, on_user_data_free user_data_free);
 
 /**
  * 停止某路或全部ps-rtp发送，此api线程安全
